@@ -1,0 +1,38 @@
+= Hello from AsciiDoc!
+Doc Writer <doc@example.com>
+
+An introduction to http://asciidoc.org[AsciiDoc].
+
+// What about comments?
+
+== Level 1 Item 1
+
+* item 1 with _emphasis_
+* item 2 with a link http://www.google.it[Google]
+
+[source,java]
+
+@Override
+    public void visitListing(Block block) {
+        Element element=new Element("p", odtDocument.getRootElement().getNamespace("text"));
+        element.setAttribute("style-name", "adoc-listing", odtDocument.getRootElement().getNamespace("text"));
+        element.setText(Joiner.on("\n").join(block.lines()));
+        currentElement.addContent(element);
+
+    }
+
+=== Level 2 Item 1
+
+[width="40%",frame="topbot",options="header,footer"]
+|===============================================
+|Column 1                           |Column 2
+|1 with _emphasis_                  |Item 1
+|2 http://www.google.it[Google]     |Item 2
+|3                                  |Item 3
+|6                                  |Three items
+|===============================================
+
+
+some text
+
+== Level 1 Item 2

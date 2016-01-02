@@ -1,0 +1,29 @@
+= Hello from AsciiDoc!
+Doc Writer <doc@example.com>
+
+An introduction to http://asciidoc.org[AsciiDoc].
+
+// What about comments?
+
+== Level 1 Item 1
+
+Text of level 1 item 1.
+Another line with _emphasis_ and **bold**
+
+=== Level 2 Item 1
+
+Text of level 2 item 1
+
+[width="40%",frame="topbot",options="header,footer"]
+|======================
+|Column 1 |Column 2
+|1        |Item 1
+|2        |Item 2
+|3        |Item 3
+|6        |Three items
+|======================
+
+
+== Level 1 Item 2
+
+Text of level 1 item 2
