@@ -17,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Stack;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
@@ -36,6 +37,8 @@ public class Adoc2Odt implements AdocListener {
     private File basePath;
 
     private List<String> imageList = new ArrayList<String>();
+
+    private final Stack<String> styleStack = new Stack<String>();
 
     public Adoc2Odt(File outputFile, File styleFile) throws Exception {
         this.styleFile = styleFile;
@@ -139,7 +142,34 @@ public class Adoc2Odt implements AdocListener {
     @Override
     public void visitParagraph(Block paragraph)  {
         Element htmlElement= fromString(paragraph.convert()).getChild("p");
-        currentElement.addContent(translateHtml(htmlElement));
+        Object adocStyle = getAdocStyle(paragraph);
+        if (adocStyle != null)
+            pushCurrentParagraphStyle(adocStyle.toString());
+
+        String appliedStyle = styleStack.empty()? null : styleStack.peek();
+        currentElement.addContent(translateHtml(htmlElement, appliedStyle));
+    }
+
+    @Override
+    public void departParagraph(Block paragraph) {
+        Object adocStyle = getAdocStyle(paragraph);
+        if (adocStyle != null)
+            styleStack.pop();
+
+    }
+
+    private Object getAdocStyle(Block paragraph) {
+        if (paragraph.getAttributes().get("role") != null)
+            return String.format("adoc-%s", paragraph.getAttributes().get("role") );
+        if (paragraph.getAttributes().get("style") != null)
+            return String.format("adoc-%s", paragraph.getAttributes().get("style") );
+        return null;
+    }
+
+    private Element translateHtml(Element htmlElement, Object style) {
+        Element newParagraph = createStyledOdtElement("p", style);
+        fill(htmlElement, newParagraph);
+        return newParagraph;
     }
 
     private Element translateHtml(Element htmlElement) {
@@ -149,6 +179,8 @@ public class Adoc2Odt implements AdocListener {
     }
 
     private void fill(Element htmlElement, Element parent) {
+        if(htmlElement == null)
+            return;
         for (Content child : htmlElement.getContent()) {
             if (child instanceof Text)
                 parent.addContent(htmlElementToOdtElement((Text)child));
@@ -172,10 +204,6 @@ public class Adoc2Odt implements AdocListener {
         }  else if (odtElement.getName().equalsIgnoreCase("img")) {
             //odtElement.setName("image");
             return createOdtImage(htmlElement);
-            /*<draw:frame draw:style-name="fr1" draw:name="Image1"
-            text:anchor-type="char" svg:x="5.946cm" svg:y="0.192cm"
-            svg:width="8.467cm" svg:height="1.693cm" draw:z-index="0">
-            <draw:image xlink:href="Pictures/10000000000000F00000003067F0A573.jpg" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/></draw:frame>*/
         }
 
         return odtElement;
@@ -235,11 +263,6 @@ public class Adoc2Odt implements AdocListener {
 
     private Content htmlElementToOdtElement(Text child) {
         return child.clone();
-    }
-
-    @Override
-    public void departParagraph(Block block) {
-
     }
 
     @Override
@@ -370,6 +393,31 @@ public class Adoc2Odt implements AdocListener {
     }
 
     @Override
+    public void visitSidebar(Block block) {
+        Element title = createStyledOdtElement("p", "adoc-sidebar-title");
+        title.setText(getAttribute(block, "title"));
+        currentElement.addContent(title);
+        pushCurrentParagraphStyle("adoc-sidebar");
+    }
+
+    private void pushCurrentParagraphStyle(String styleName) {
+        styleStack.push(styleName);
+    }
+
+    @Override
+    public void departSidebar(Block block) {
+        styleStack.pop();
+    }
+
+
+    private String getAttribute(Block block, String attributeName) {
+        Object attr = block.getAttributes().get(attributeName);
+        if (attr != null)
+            return attr.toString();
+        return "";
+    }
+
+    @Override
     public void visitTableColumn(TableColumn tableColumn) {
         Element columnElement = createOdtElement("table-column", "table");
         columnElement.setAttribute(createOdtAttribute("style-name", String.format("Table%d.%s", tableCount, 'A' + tableColumn.getIndex() ), "table"));
@@ -396,9 +444,10 @@ public class Adoc2Odt implements AdocListener {
         return new Element(name, odtDocument.getRootElement().getNamespace("table"));
     }
 
-    private Element createStyledOdtElement(String name, String style) {
+    private Element createStyledOdtElement(String name, Object style) {
         Element element = createOdtElement(name);
-        element.setAttribute(createOdtAttribute("style-name", style));
+        if (style != null)
+            element.setAttribute(createOdtAttribute("style-name", style.toString()));
         return element;
     }
 
