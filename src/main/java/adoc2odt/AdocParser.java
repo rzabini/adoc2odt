@@ -68,6 +68,8 @@ public class AdocParser {
             visitTable((TableNode)block);
         else if (block.getContext().equalsIgnoreCase("sidebar"))
             visitSidebar((Block)block);
+        else if (block.getContext().equalsIgnoreCase("admonition"))
+            visitAdmonition((Block)block);
 
         //ListIterator<AbstractBlock> iterator = block.getBlocks().listIterator();
         List<AbstractBlock> abstractBlockList = safeNodeConverter.getBlocks(block);
@@ -88,8 +90,14 @@ public class AdocParser {
             announcer.announce().departListing((Block)block);
         else if (block.getContext().equalsIgnoreCase("sidebar"))
             announcer.announce().departSidebar((Block)block);
+        else if (block.getContext().equalsIgnoreCase("admonition"))
+            announcer.announce().departAdmonition((Block)block);
 
 
+    }
+
+    private void visitAdmonition(Block block) {
+        announcer.announce().visitAdmonition(block);
     }
 
     private void visitSidebar(Block block) {

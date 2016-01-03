@@ -47,4 +47,8 @@ public interface AdocListener extends EventListener {
     void visitSidebar(Block block);
 
     void departSidebar(Block block);
+
+    void visitAdmonition(Block block);
+
+    void departAdmonition(Block block);
 }

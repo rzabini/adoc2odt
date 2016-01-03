@@ -71,9 +71,8 @@ public class Adoc2Odt implements AdocListener {
             writeContent();
             copyZipEntry(styleFile, zos, "settings.xml");
             copyZipEntry(styleFile, zos, "styles.xml");
-
             copyZipEntry(styleFile, zos, "mimetype");
-
+            extractFolderFromZip(styleFile, "Pictures", zos);
             writeManifest();
 
             zos.close();
@@ -109,7 +108,7 @@ public class Adoc2Odt implements AdocListener {
         root.addContent(createFileEntryManifestElement("settings.xml"));
 
         for (String imageFile : imageList)
-            root.addContent(createFileEntryManifestElement(String.format("Pictures/%s", imageFile), "image/png"));
+            root.addContent(createFileEntryManifestElement(String.format("%s", imageFile), "image/png"));
         return document;
     }
 
@@ -415,6 +414,21 @@ public class Adoc2Odt implements AdocListener {
         styleStack.pop();
     }
 
+    @Override
+    public void visitAdmonition(Block block) {
+        Element element= createStyledOdtElement("p", String.format("adoc-%s", getAttribute(block, "style").toLowerCase()));
+
+        for (String line : block.lines()) {
+            appendTranslatedHtmlFragment(element, line);
+        }
+        currentElement.addContent(element);
+    }
+
+    @Override
+    public void departAdmonition(Block block) {
+
+    }
+
 
     private String getAttribute(Block block, String attributeName) {
         Object attr = block.getAttributes().get(attributeName);
@@ -513,9 +527,9 @@ public class Adoc2Odt implements AdocListener {
 
     private void storeImage(File imageFile) {
         try {
-            String embeddedFileName = imageFile.getName();
-            imageList.add(embeddedFileName);
-            ZipEntry ze = new ZipEntry(String.format("Pictures/%s", embeddedFileName));
+            String fileRelativePath = String.format("Pictures/%s", imageFile.getName());
+            imageList.add(fileRelativePath);
+            ZipEntry ze = new ZipEntry(fileRelativePath);
             zos.putNextEntry(ze);
 
             Path path = imageFile.toPath();
@@ -568,6 +582,30 @@ public class Adoc2Odt implements AdocListener {
                     outputStream.write(buffer, 0, len);
                 }
                 break;
+            }
+        }
+    }
+
+    void extractFolderFromZip(File zipFile, String folder, OutputStream outputStream) throws IOException {
+        FileInputStream fin = new FileInputStream(zipFile);
+        BufferedInputStream bin = new BufferedInputStream(fin);
+        ZipInputStream zin = new ZipInputStream(bin);
+        ZipEntry ze = null;
+        while ((ze = zin.getNextEntry()) != null) {
+            if (ze.getName().startsWith(folder)) {
+
+                ZipEntry destZipEntry = new ZipEntry(ze.getName());
+                zos.putNextEntry(ze);
+
+                byte[] buffer = new byte[8192];
+                int len;
+                while ((len = zin.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, len);
+                }
+
+                zos.closeEntry();
+                imageList.add(ze.getName());
+
             }
         }
     }
