@@ -39,7 +39,7 @@ public class AdocParser {
         Asciidoctor asciidoctor = Asciidoctor.Factory.create();
         Document document=asciidoctor.load(readFile(adocFile.getAbsolutePath(), Charset.defaultCharset()), options);
 
-        announcer.announce().visitDocument(document);
+        announcer.announce().visitDocument(document, adocFile.getAbsolutePath());
 
         ListIterator<AbstractBlock> iterator = document.getBlocks().listIterator();
         while (iterator.hasNext())
@@ -69,8 +69,10 @@ public class AdocParser {
 
         //ListIterator<AbstractBlock> iterator = block.getBlocks().listIterator();
         List<AbstractBlock> abstractBlockList = safeNodeConverter.getBlocks(block);
-        for (AbstractBlock abstractBlock : abstractBlockList)
+        for (AbstractBlock abstractBlock : abstractBlockList) {
+            System.out.println(abstractBlock.getTitle());
             visit(abstractBlock);
+        }
 
         if (block.getContext().equalsIgnoreCase("paragraph"))
             announcer.announce().departParagraph((Block)block);

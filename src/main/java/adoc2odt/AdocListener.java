@@ -6,7 +6,7 @@ import java.util.EventListener;
 
 public interface AdocListener extends EventListener {
 
-    void visitDocument(Document document);
+    void visitDocument(Document document, String absolutePath);
     void departDocument(Document document);
 
     void visitParagraph(Block block);

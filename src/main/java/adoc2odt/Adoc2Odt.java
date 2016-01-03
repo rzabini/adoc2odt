@@ -1,14 +1,21 @@
 package adoc2odt;
 
 import com.gc.iotools.stream.os.OutputStreamToInputStream;
+import org.apache.sanselan.ImageInfo;
+import org.apache.sanselan.ImageReadException;
+import org.apache.sanselan.Sanselan;
 import org.asciidoctor.ast.*;
 import org.asciidoctor.ast.Document;
 import org.jdom2.*;
 import org.jdom2.input.SAXBuilder;
+import org.jdom2.output.Format;
 import org.jdom2.output.XMLOutputter;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -17,6 +24,7 @@ import java.util.zip.ZipOutputStream;
 public class Adoc2Odt implements AdocListener {
 
     public static final String MAIN_NAMESPACE = "urn:oasis:names:tc:opendocument:xmlns:office:1.0";
+    public static final double DFAULT_72_DPI = 28.34;
 
     private final File styleFile;
     private final ZipOutputStream zos;
@@ -25,6 +33,9 @@ public class Adoc2Odt implements AdocListener {
     private Element currentElement = null;
 
     private int tableCount = 0;
+    private File basePath;
+
+    private List<String> imageList = new ArrayList<String>();
 
     public Adoc2Odt(File outputFile, File styleFile) throws Exception {
         this.styleFile = styleFile;
@@ -42,7 +53,8 @@ public class Adoc2Odt implements AdocListener {
     }
 
     @Override
-    public void visitDocument(Document document) {
+    public void visitDocument(Document document, String absolutePath) {
+        this.basePath = new File(absolutePath).getParentFile();
         try {
             writeMetadata(styleFile, "meta.xml", document);
         } catch (Exception e) {
@@ -58,8 +70,8 @@ public class Adoc2Odt implements AdocListener {
             copyZipEntry(styleFile, zos, "styles.xml");
 
             copyZipEntry(styleFile, zos, "mimetype");
-            copyZipEntry(styleFile, zos, "META-INF/manifest.xml");
 
+            writeManifest();
 
             zos.close();
         } catch (IOException e) {
@@ -68,7 +80,53 @@ public class Adoc2Odt implements AdocListener {
 
     }
 
+    private void writeManifest() throws IOException {
+        ZipEntry ze= new ZipEntry("META-INF/manifest.xml");
+        zos.putNextEntry(ze);
+        org.jdom2.Document document = getManifestXMLDocument();
+
+        XMLOutputter xo = new XMLOutputter();
+        xo.setFormat(Format.getPrettyFormat());
+        xo.output(document, zos);
+        zos.closeEntry();
+
+    }
+
+    private org.jdom2.Document getManifestXMLDocument() {
+        org.jdom2.Document document = new org.jdom2.Document();
+
+        Namespace manifestNamespace = Namespace.getNamespace("manifest", "urn:oasis:names:tc:opendocument:xmlns:manifest:1.0\" manifest:version=\"1.2\"");
+        Element root = new Element("manifest", manifestNamespace);
+        document.addContent(root);
+
+        root.addContent(createFileEntryManifestElement("/", "application/vnd.oasis.opendocument.text"));
+        root.addContent(createFileEntryManifestElement("styles.xml"));
+        root.addContent(createFileEntryManifestElement("content.xml"));
+        root.addContent(createFileEntryManifestElement("meta.xml"));
+        root.addContent(createFileEntryManifestElement("settings.xml"));
+
+        for (String imageFile : imageList)
+            root.addContent(createFileEntryManifestElement(String.format("Pictures/%s", imageFile), "image/png"));
+        return document;
+    }
+
+    private Element createFileEntryManifestElement(String fileEntryFullPath) {
+        return createFileEntryManifestElement(fileEntryFullPath, "text/xml");
+    }
+
+    private Element createFileEntryManifestElement(String fileEntryFullPath, String mediaType) {
+        Namespace manifestNamespace = Namespace.getNamespace("manifest", "urn:oasis:names:tc:opendocument:xmlns:manifest:1.0\" manifest:version=\"1.2\"");
+
+        Element fileEntry = new Element("file-entry", manifestNamespace);
+        fileEntry.setAttribute("full-path", fileEntryFullPath, manifestNamespace);
+        fileEntry.setAttribute("media-type", mediaType, manifestNamespace);
+        return fileEntry;
+    }
+
     Element fromString(String xml)  {
+        xml = xml.replaceAll ("(<img[^>]*)>", "$1 />");
+        xml = xml.replaceAll ("(<br[^>]*)>", "$1 />");
+
         SAXBuilder saxBuilder = new SAXBuilder();
         InputStream xmlStream = new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8));
         try {
@@ -86,26 +144,87 @@ public class Adoc2Odt implements AdocListener {
 
     private Element translateHtml(Element htmlElement) {
         Element newParagraph = createOdtElement("p");
-        for (Content child : htmlElement.getContent()) {
-            if (child instanceof Text)
-                newParagraph.addContent(htmlElementToOdtElement((Text)child));
-            else if (child instanceof Element)
-                newParagraph.addContent(htmlElementToOdtElement((Element) child));
-        }
+        fill(htmlElement, newParagraph);
         return newParagraph;
     }
 
-    private Content htmlElementToOdtElement(Element child) {
-        Element odtElement = child.clone();
+    private void fill(Element htmlElement, Element parent) {
+        for (Content child : htmlElement.getContent()) {
+            if (child instanceof Text)
+                parent.addContent(htmlElementToOdtElement((Text)child));
+            else if (child instanceof Element) {
+                Element subElement = htmlElementToOdtElement((Element) child);
+                parent.addContent(subElement);
+                fill ((Element)child, subElement);
+            }
+        }
+    }
+
+    private Element htmlElementToOdtElement(Element htmlElement) {
+        Element odtElement = createOdtElement(htmlElement.getName()); //child.clone();
         if (odtElement.getName().equalsIgnoreCase("a")) {
             odtElement.setNamespace(getOdtTextNamespace());
-            odtElement.setAttribute(createOdtAttribute("href", child.getAttribute("href").getValue(), "xlink"));
+            odtElement.setAttribute(createOdtAttribute("href", htmlElement.getAttribute("href").getValue(), "xlink"));
         } else if (odtElement.getName().equalsIgnoreCase("em")) {
             addTextRun(odtElement, "adoc-emphasis");
         } else if (odtElement.getName().equalsIgnoreCase("strong")) {
             addTextRun(odtElement, "adoc-strong");
+        }  else if (odtElement.getName().equalsIgnoreCase("img")) {
+            //odtElement.setName("image");
+            return createOdtImage(htmlElement);
+            /*<draw:frame draw:style-name="fr1" draw:name="Image1"
+            text:anchor-type="char" svg:x="5.946cm" svg:y="0.192cm"
+            svg:width="8.467cm" svg:height="1.693cm" draw:z-index="0">
+            <draw:image xlink:href="Pictures/10000000000000F00000003067F0A573.jpg" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/></draw:frame>*/
         }
+
         return odtElement;
+    }
+
+    private Element createOdtImage(Element htmlElement)  {
+
+        String imageFilePath = htmlElement.getAttributeValue("src");
+        File imageFile = new File( basePath, imageFilePath);
+        ImageInfo imageInfo = getImageInfo(imageFile);
+
+        Element frame = createOdtElement("frame", "draw");
+        frame.setAttribute(createOdtAttribute("name", "Image1", "draw"));
+        frame.setAttribute(createOdtAttribute("z-index", "0", "draw"));
+
+        frame.setAttribute(createOdtAttribute("width", getImageSizeInCm(imageInfo.getWidth()), "svg"));
+        frame.setAttribute(createOdtAttribute("height",  getImageSizeInCm(imageInfo.getHeight()), "svg"));
+        frame.setAttribute(createOdtAttribute("anchor-type", "paragraph", "text"));
+
+
+        Element image = createOdtElement("image", "draw");
+        image.setAttribute(createOdtAttribute("type", "simple", "xlink"));
+        image.setAttribute(createOdtAttribute("show", "embed", "xlink"));
+        image.setAttribute(createOdtAttribute("actuate", "onLoad", "xlink"));
+
+        frame.addContent(image);
+
+
+        storeImage(imageFile);
+
+
+        image.setAttribute(createOdtAttribute("href", String.format("Pictures/%s",
+                imageFile.getName()) ,"xlink"));
+        return frame;
+    }
+
+    private String getImageSizeInCm(int size) {
+        return String.format("%scm", Double.toString (size/ DFAULT_72_DPI)).replace(',', '.');
+    }
+
+    private ImageInfo getImageInfo(File imageFile)  {
+        try {
+            ImageInfo info = Sanselan.getImageInfo(imageFile);
+            return info;
+        } catch (ImageReadException e) {
+            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private void addTextRun(Element odtElement, String styleName) {
@@ -336,6 +455,25 @@ public class Adoc2Odt implements AdocListener {
         xo.output(odtDocument, zos);
         zos.closeEntry();
     }
+
+    private void storeImage(File imageFile) {
+        try {
+            String embeddedFileName = imageFile.getName();
+            imageList.add(embeddedFileName);
+            ZipEntry ze = new ZipEntry(String.format("Pictures/%s", embeddedFileName));
+            zos.putNextEntry(ze);
+
+            Path path = imageFile.toPath();
+            Files.copy(path, zos);
+            zos.closeEntry();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+
+    }
+
+
 
     org.jdom2.Document extractXMLFromZip(File zipFile, String fileName) throws Exception {
 
