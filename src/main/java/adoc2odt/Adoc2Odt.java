@@ -267,11 +267,17 @@ public class Adoc2Odt implements AdocListener {
 
     @Override
     public void visitSection(Section section) {
-        Element element=new Element("h", getOdtTextNamespace());
-        element.setAttribute("style-name", String.format("adoc-heading-%d", section.getLevel()), getOdtTextNamespace());
-        element.setText(section.getTitle());
-        currentElement.addContent(element);
-        //currentElement = element;
+        Element heading=new Element("h", getOdtTextNamespace());
+        heading.setAttribute("style-name", String.format("adoc-heading-%d", section.getLevel()), getOdtTextNamespace());
+        appendTranslatedHtmlFragment(heading, section.getTitle());
+
+        currentElement.addContent(heading);
+    }
+
+    private void appendTranslatedHtmlFragment(Element parentNode, String htmlFragment) {
+        Element htmlElement= fromString(String.format("<p>%s</p>", htmlFragment));
+        for (Content child : translateHtml(htmlElement).getContent())
+            parentNode.addContent(child.clone());
     }
 
     @Override
