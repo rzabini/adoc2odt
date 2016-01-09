@@ -48,4 +48,7 @@ public class Manifest {
         return fileEntry;
     }
 
+    public boolean exists(String fileRelativePath) {
+        return fileEntries.contains(fileRelativePath);
+    }
 }

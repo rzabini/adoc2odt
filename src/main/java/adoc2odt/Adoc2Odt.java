@@ -1,8 +1,5 @@
 package adoc2odt;
 
-import org.apache.sanselan.ImageInfo;
-import org.apache.sanselan.ImageReadException;
-import org.apache.sanselan.Sanselan;
 import org.asciidoctor.ast.*;
 import org.asciidoctor.ast.Document;
 import org.jdom2.*;
@@ -13,9 +10,6 @@ import java.util.Stack;
 public class Adoc2Odt implements AdocListener {
 
     public static final String MAIN_NAMESPACE = "urn:oasis:names:tc:opendocument:xmlns:office:1.0";
-    public static final double DFAULT_72_DPI = 28.34;
-
-    //private final File styleFile;
 
     private final org.jdom2.Document odtDocument;
     private Element currentElement = null;
@@ -136,49 +130,14 @@ public class Adoc2Odt implements AdocListener {
     }
 
     private Element createOdtImage(Element htmlElement)  {
-
+        OdtImage odtImage = new OdtImage(odtDocument.getRootElement(), htmlElement, basePath);
         String imageFilePath = htmlElement.getAttributeValue("src");
         File imageFile = new File( basePath, imageFilePath);
-        ImageInfo imageInfo = getImageInfo(imageFile);
-
-        Element frame = createOdtElement("frame", "draw");
-        frame.setAttribute(createOdtAttribute("name", "Image1", "draw"));
-        frame.setAttribute(createOdtAttribute("z-index", "0", "draw"));
-
-        frame.setAttribute(createOdtAttribute("width", getImageSizeInCm(imageInfo.getWidth()), "svg"));
-        frame.setAttribute(createOdtAttribute("height",  getImageSizeInCm(imageInfo.getHeight()), "svg"));
-        frame.setAttribute(createOdtAttribute("anchor-type", "paragraph", "text"));
-
-
-        Element image = createOdtElement("image", "draw");
-        image.setAttribute(createOdtAttribute("type", "simple", "xlink"));
-        image.setAttribute(createOdtAttribute("show", "embed", "xlink"));
-        image.setAttribute(createOdtAttribute("actuate", "onLoad", "xlink"));
-
-        frame.addContent(image);
-
-
         storeImage(imageFile);
-
-
-        image.setAttribute(createOdtAttribute("href", String.format("Pictures/%s",
-                imageFile.getName()) ,"xlink"));
-        return frame;
+        return odtImage.toOdtElement();
     }
 
-    private String getImageSizeInCm(int size) {
-        return String.format("%scm", Double.toString (size/ DFAULT_72_DPI)).replace(',', '.');
-    }
 
-    private ImageInfo getImageInfo(File imageFile)  {
-        try {
-            return Sanselan.getImageInfo(imageFile);
-        } catch (ImageReadException e) {
-            throw new RuntimeException(e);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
 
     private void addTextRun(Element odtElement, String styleName) {
         odtElement.setNamespace(getOdtTextNamespace());
@@ -437,8 +396,11 @@ public class Adoc2Odt implements AdocListener {
 
     private void storeImage(File imageFile) {
             String fileRelativePath = String.format("Pictures/%s", imageFile.getName());
-            manifest.addFileEntry(fileRelativePath);
-            odtFile.storeFile(imageFile, fileRelativePath);
+
+            if (!manifest.exists(fileRelativePath)) {
+                manifest.addFileEntry(fileRelativePath);
+                odtFile.storeFile(imageFile, fileRelativePath);
+            }
     }
 
 }
