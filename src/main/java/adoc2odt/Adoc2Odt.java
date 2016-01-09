@@ -21,7 +21,7 @@ public class Adoc2Odt implements AdocListener {
 
     private final Manifest manifest=new Manifest();
 
-    private final Stack<String> styleStack = new Stack<String>();
+    private final Stack<OdtStyle> styleStack = new Stack<OdtStyle>();
 
     public Adoc2Odt(File outputFile, File styleFile) throws Exception {
         //this.styleFile = styleFile;
@@ -62,28 +62,24 @@ public class Adoc2Odt implements AdocListener {
     public void visitParagraph(Block paragraph)  {
         HtmlFragment htmlFragment = new HtmlFragment(paragraph.convert());
         Element element=   htmlFragment.toValidXmlElement().getChild("p");
-        Object adocStyle = getAdocStyle(paragraph);
-        if (adocStyle != null)
+        OdtStyle adocStyle = getAdocStyle(paragraph);
+        if (adocStyle.isValid())
             pushCurrentParagraphStyle(adocStyle.toString());
 
-        String appliedStyle = styleStack.empty()? null : styleStack.peek();
-        currentElement.addContent(translateHtml(element, appliedStyle));
+        OdtStyle appliedStyle = styleStack.empty()? null : styleStack.peek();
+        if(appliedStyle != null)
+            currentElement.addContent(translateHtml(element, appliedStyle.toString()));
     }
 
     @Override
     public void departParagraph(Block paragraph) {
-        Object adocStyle = getAdocStyle(paragraph);
-        if (adocStyle != null)
+        OdtStyle adocStyle = getAdocStyle(paragraph);
+        if (adocStyle.isValid())
             styleStack.pop();
-
     }
 
-    private Object getAdocStyle(Block paragraph) {
-        if (paragraph.getAttributes().get("role") != null)
-            return String.format("adoc-%s", paragraph.getAttributes().get("role") );
-        if (paragraph.getAttributes().get("style") != null)
-            return String.format("adoc-%s", paragraph.getAttributes().get("style") );
-        return null;
+    private OdtStyle getAdocStyle(Block paragraph) {
+        return new OdtStyle(paragraph.getAttributes());
     }
 
     private Element translateHtml(Element htmlElement, Object style) {
@@ -295,7 +291,7 @@ public class Adoc2Odt implements AdocListener {
     }
 
     private void pushCurrentParagraphStyle(String styleName) {
-        styleStack.push(styleName);
+        styleStack.push(new OdtStyle(styleName));
     }
 
     @Override
