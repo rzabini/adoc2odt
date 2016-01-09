@@ -1,6 +1,5 @@
 package adoc2odt;
 
-import com.gc.iotools.stream.os.OutputStreamToInputStream;
 import org.apache.sanselan.ImageInfo;
 import org.apache.sanselan.ImageReadException;
 import org.apache.sanselan.Sanselan;
@@ -8,27 +7,17 @@ import org.asciidoctor.ast.*;
 import org.asciidoctor.ast.Document;
 import org.jdom2.*;
 import org.jdom2.input.SAXBuilder;
-import org.jdom2.output.Format;
-import org.jdom2.output.XMLOutputter;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Stack;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
-import java.util.zip.ZipOutputStream;
 
 public class Adoc2Odt implements AdocListener {
 
     public static final String MAIN_NAMESPACE = "urn:oasis:names:tc:opendocument:xmlns:office:1.0";
     public static final double DFAULT_72_DPI = 28.34;
 
-    private final File styleFile;
-    private final ZipOutputStream zos;
+    //private final File styleFile;
 
     private final org.jdom2.Document odtDocument;
     private Element currentElement = null;
@@ -36,17 +25,18 @@ public class Adoc2Odt implements AdocListener {
     private int tableCount = 0;
     private File basePath;
 
-    private List<String> imageList = new ArrayList<String>();
+    private final OdtFile odtFile;
+
+    private final Manifest manifest=new Manifest();
 
     private final Stack<String> styleStack = new Stack<String>();
 
     public Adoc2Odt(File outputFile, File styleFile) throws Exception {
-        this.styleFile = styleFile;
+        //this.styleFile = styleFile;
 
-        FileOutputStream fos = new FileOutputStream(outputFile);
-        zos = new ZipOutputStream(fos);
+        odtFile = new OdtFile(outputFile, styleFile);
 
-        odtDocument = extractXMLFromZip(styleFile, "content.xml");
+        odtDocument = odtFile.extractXMLFromZip(styleFile, "content.xml");
 
         Namespace officeNS = odtDocument.getRootElement().getNamespace("office");
         currentElement = odtDocument.getRootElement().getChild("body", officeNS).getChild("text", officeNS);
@@ -59,71 +49,26 @@ public class Adoc2Odt implements AdocListener {
     public void visitDocument(Document document, String absolutePath) {
         this.basePath = new File(absolutePath).getParentFile();
         try {
-            writeMetadata(styleFile, "meta.xml", document);
+            writeMetadata(document);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
     public void departDocument(Document adocDocument) {
+        odtFile.writeContent(odtDocument);
 
-        try {
-            writeContent();
-            copyZipEntry(styleFile, zos, "settings.xml");
-            copyZipEntry(styleFile, zos, "styles.xml");
-            copyZipEntry(styleFile, zos, "mimetype");
-            extractFolderFromZip(styleFile, "Pictures", zos);
-            writeManifest();
+        odtFile.copyFromStyle("settings.xml");
+        odtFile.copyFromStyle("styles.xml");
+        odtFile.copyFromStyle("mimetype");
 
-            zos.close();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        odtFile.copyPicturesFolderFromStyle(manifest);
 
+        odtFile.writeManifest(manifest.toDocument());
+
+        odtFile.close();
     }
 
-    private void writeManifest() throws IOException {
-        ZipEntry ze= new ZipEntry("META-INF/manifest.xml");
-        zos.putNextEntry(ze);
-        org.jdom2.Document document = getManifestXMLDocument();
-
-        XMLOutputter xo = new XMLOutputter();
-        xo.setFormat(Format.getPrettyFormat());
-        xo.output(document, zos);
-        zos.closeEntry();
-
-    }
-
-    private org.jdom2.Document getManifestXMLDocument() {
-        org.jdom2.Document document = new org.jdom2.Document();
-
-        Namespace manifestNamespace = Namespace.getNamespace("manifest", "urn:oasis:names:tc:opendocument:xmlns:manifest:1.0\" manifest:version=\"1.2\"");
-        Element root = new Element("manifest", manifestNamespace);
-        document.addContent(root);
-
-        root.addContent(createFileEntryManifestElement("/", "application/vnd.oasis.opendocument.text"));
-        root.addContent(createFileEntryManifestElement("styles.xml"));
-        root.addContent(createFileEntryManifestElement("content.xml"));
-        root.addContent(createFileEntryManifestElement("meta.xml"));
-        root.addContent(createFileEntryManifestElement("settings.xml"));
-
-        for (String imageFile : imageList)
-            root.addContent(createFileEntryManifestElement(String.format("%s", imageFile), "image/png"));
-        return document;
-    }
-
-    private Element createFileEntryManifestElement(String fileEntryFullPath) {
-        return createFileEntryManifestElement(fileEntryFullPath, "text/xml");
-    }
-
-    private Element createFileEntryManifestElement(String fileEntryFullPath, String mediaType) {
-        Namespace manifestNamespace = Namespace.getNamespace("manifest", "urn:oasis:names:tc:opendocument:xmlns:manifest:1.0\" manifest:version=\"1.2\"");
-
-        Element fileEntry = new Element("file-entry", manifestNamespace);
-        fileEntry.setAttribute("full-path", fileEntryFullPath, manifestNamespace);
-        fileEntry.setAttribute("media-type", mediaType, manifestNamespace);
-        return fileEntry;
-    }
 
     Element fromString(String xml)  {
         xml = xml.replaceAll ("(<img[^>]*)>", "$1 />");
@@ -245,8 +190,7 @@ public class Adoc2Odt implements AdocListener {
 
     private ImageInfo getImageInfo(File imageFile)  {
         try {
-            ImageInfo info = Sanselan.getImageInfo(imageFile);
-            return info;
+            return Sanselan.getImageInfo(imageFile);
         } catch (ImageReadException e) {
             throw new RuntimeException(e);
         } catch (IOException e) {
@@ -486,129 +430,29 @@ public class Adoc2Odt implements AdocListener {
     }
 
 
-    private void writeMetadata(File styleFile, String fileName, Document adocDocument) throws Exception {
-        org.jdom2.Document document = extractXMLFromZip(styleFile, fileName);
+    private void writeMetadata(Document adocDocument) throws Exception {
+        odtFile.setMetaProperty("meta", "generator", "adoc2odt");
+        odtFile.setMetaProperty( "dc", "title", adocDocument.doctitle());
+        odtFile.writeMetadata();
+    }
 
+    private void setMetaProperty(org.jdom2.Document document, String attributeNamespace, String attributeName, String attributeValue) {
         Element root = document.getRootElement();
-        List<Namespace> ns = root.getNamespacesIntroduced();
         Element meta = root.getChild("meta", root.getNamespace());
-        Element generator = meta.getChild("generator", root.getNamespace("meta"));
-        generator.setText("adoc2odt");
-
-        Element title = meta.getChild("title", root.getNamespace("dc"));
-        if (title == null) {
-            title = new Element("title", root.getNamespace("dc"));
-            meta.addContent(title );
+        Element attributeElement = meta.getChild(attributeName, root.getNamespace(attributeNamespace));
+        if (attributeElement == null) {
+            attributeElement = new Element(attributeName, root.getNamespace(attributeNamespace));
+            meta.addContent(attributeElement);
         }
 
-        title.setText(adocDocument.doctitle());
-
-        ZipEntry ze= new ZipEntry(fileName);
-        zos.putNextEntry(ze);
-        XMLOutputter xo = new XMLOutputter();
-        xo.output(document, zos);
-        zos.closeEntry();
+        attributeElement.setText(attributeValue);
     }
 
-    private void copyZipEntry(File styleFile, ZipOutputStream zos, String fileName) throws IOException {
-        ZipEntry ze= new ZipEntry(fileName);
-        zos.putNextEntry(ze);
-        extractFileFromZip(styleFile, fileName, zos);
-        zos.closeEntry();
-    }
-
-    private void writeContent() throws IOException {
-        ZipEntry ze= new ZipEntry("content.xml");
-        zos.putNextEntry(ze);
-        XMLOutputter xo = new XMLOutputter();
-        xo.output(odtDocument, zos);
-        zos.closeEntry();
-    }
 
     private void storeImage(File imageFile) {
-        try {
             String fileRelativePath = String.format("Pictures/%s", imageFile.getName());
-            imageList.add(fileRelativePath);
-            ZipEntry ze = new ZipEntry(fileRelativePath);
-            zos.putNextEntry(ze);
-
-            Path path = imageFile.toPath();
-            Files.copy(path, zos);
-            zos.closeEntry();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-
+            manifest.addFileEntry(fileRelativePath);
+            odtFile.storeFile(imageFile, fileRelativePath);
     }
-
-
-
-    org.jdom2.Document extractXMLFromZip(File zipFile, String fileName) throws Exception {
-
-        final OutputStreamToInputStream<org.jdom2.Document> out = new OutputStreamToInputStream<org.jdom2.Document>() {
-            @Override
-            protected org.jdom2.Document doRead(final InputStream istream) throws Exception {
-          /*
-           * Read the data from the InputStream "istream" passed as parameter.
-           */
-                SAXBuilder saxBuilder = new SAXBuilder();
-                return saxBuilder.build(istream);
-            }
-        };
-        try {
-            extractFileFromZip(zipFile, fileName, out);
-        } finally {
-            // don't miss the close (or a thread would not terminate correctly).
-            out.close();
-        }
-
-
-        return out.getResult();
-
-
-    }
-
-    void extractFileFromZip(File zipFile, String fileName, OutputStream outputStream) throws IOException {
-        FileInputStream fin = new FileInputStream(zipFile);
-        BufferedInputStream bin = new BufferedInputStream(fin);
-        ZipInputStream zin = new ZipInputStream(bin);
-        ZipEntry ze = null;
-        while ((ze = zin.getNextEntry()) != null) {
-            if (ze.getName().equals(fileName)) {
-                byte[] buffer = new byte[8192];
-                int len;
-                while ((len = zin.read(buffer)) != -1) {
-                    outputStream.write(buffer, 0, len);
-                }
-                break;
-            }
-        }
-    }
-
-    void extractFolderFromZip(File zipFile, String folder, OutputStream outputStream) throws IOException {
-        FileInputStream fin = new FileInputStream(zipFile);
-        BufferedInputStream bin = new BufferedInputStream(fin);
-        ZipInputStream zin = new ZipInputStream(bin);
-        ZipEntry ze = null;
-        while ((ze = zin.getNextEntry()) != null) {
-            if (ze.getName().startsWith(folder)) {
-
-                ZipEntry destZipEntry = new ZipEntry(ze.getName());
-                zos.putNextEntry(ze);
-
-                byte[] buffer = new byte[8192];
-                int len;
-                while ((len = zin.read(buffer)) != -1) {
-                    outputStream.write(buffer, 0, len);
-                }
-
-                zos.closeEntry();
-                imageList.add(ze.getName());
-
-            }
-        }
-    }
-
 
 }
