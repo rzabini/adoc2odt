@@ -199,4 +199,10 @@ public class OdtFile {
             throw new RuntimeException(e);
         }
     }
+
+    public void copyCommonElementsFromStyle() {
+        copyFromStyle("settings.xml");
+        copyFromStyle("styles.xml");
+        copyFromStyle("mimetype");
+    }
 }

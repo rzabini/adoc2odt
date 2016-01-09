@@ -58,14 +58,10 @@ public class Adoc2Odt implements AdocListener {
     public void departDocument(Document adocDocument) {
         odtFile.writeContent(odtDocument);
 
-        odtFile.copyFromStyle("settings.xml");
-        odtFile.copyFromStyle("styles.xml");
-        odtFile.copyFromStyle("mimetype");
-
+        odtFile.copyCommonElementsFromStyle();
         odtFile.copyPicturesFolderFromStyle(manifest);
 
         odtFile.writeManifest(manifest.toDocument());
-
         odtFile.close();
     }
 
