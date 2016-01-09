@@ -6,10 +6,8 @@ import org.apache.sanselan.Sanselan;
 import org.asciidoctor.ast.*;
 import org.asciidoctor.ast.Document;
 import org.jdom2.*;
-import org.jdom2.input.SAXBuilder;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.util.Stack;
 
 public class Adoc2Odt implements AdocListener {
@@ -66,28 +64,16 @@ public class Adoc2Odt implements AdocListener {
     }
 
 
-    Element fromString(String xml)  {
-        xml = xml.replaceAll ("(<img[^>]*)>", "$1 />");
-        xml = xml.replaceAll ("(<br[^>]*)>", "$1 />");
-
-        SAXBuilder saxBuilder = new SAXBuilder();
-        InputStream xmlStream = new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8));
-        try {
-            return saxBuilder.build(xmlStream).getRootElement();
-        } catch (Exception e) {
-           throw new RuntimeException(e);
-        }
-    }
-
     @Override
     public void visitParagraph(Block paragraph)  {
-        Element htmlElement= fromString(paragraph.convert()).getChild("p");
+        HtmlFragment htmlFragment = new HtmlFragment(paragraph.convert());
+        Element element=   htmlFragment.toValidXmlElement().getChild("p");
         Object adocStyle = getAdocStyle(paragraph);
         if (adocStyle != null)
             pushCurrentParagraphStyle(adocStyle.toString());
 
         String appliedStyle = styleStack.empty()? null : styleStack.peek();
-        currentElement.addContent(translateHtml(htmlElement, appliedStyle));
+        currentElement.addContent(translateHtml(element, appliedStyle));
     }
 
     @Override
@@ -214,9 +200,13 @@ public class Adoc2Odt implements AdocListener {
     }
 
     private void appendTranslatedHtmlFragment(Element parentNode, String htmlFragment) {
-        Element htmlElement= fromString(String.format("<p>%s</p>", htmlFragment));
+        Element htmlElement = toValidXmlElement(String.format("<p>%s</p>", htmlFragment));
         for (Content child : translateHtml(htmlElement).getContent())
             parentNode.addContent(child.clone());
+    }
+
+    private Element toValidXmlElement(String htmlFragment) {
+        return new HtmlFragment(htmlFragment).toValidXmlElement();
     }
 
     @Override
@@ -239,7 +229,7 @@ public class Adoc2Odt implements AdocListener {
     @Override
     public void visitListItem(ListItem block) {
         Element element=new Element("list-item", getOdtTextNamespace());
-        Element htmlElement= fromString(String.format("<p>%s</p>", block.getText()));
+        Element htmlElement= toValidXmlElement(String.format("<p>%s</p>", block.getText()));
         element.addContent(translateHtml(htmlElement));
         currentElement.addContent(element);
     }
@@ -300,7 +290,7 @@ public class Adoc2Odt implements AdocListener {
         Element element= createOdtTableElement("table-cell");
 
         for (Object line : cell.lines()) {
-            Element htmlElement = fromString(String.format("<p>%s</p>", line));
+            Element htmlElement = toValidXmlElement(String.format("<p>%s</p>", line));
             element.addContent(translateHtml(htmlElement));
         }
 
