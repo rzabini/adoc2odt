@@ -11,10 +11,11 @@ public class OdtDocument {
 
     private final Document xmlContents;
     private Element currentElement = null;
+    private final OdtTables odtTables = new OdtTables();
 
 
-    public OdtDocument(Document document) {
-        xmlContents = document;
+    public OdtDocument(Document template) {
+        xmlContents = template;
 
         Namespace officeNS = getRootElement().getNamespace("office");
         currentElement = getRootElement().getChild("body", officeNS).getChild("text", officeNS);
@@ -48,7 +49,7 @@ public class OdtDocument {
         return new Attribute(name, value, getRootElement().getNamespace(namespace));
     }
 
-    Element createOdtElement(String name, String namespace) {
+    Element createXmlElement(String name, String namespace) {
         return new Element(name, getRootElement().getNamespace(namespace));
     }
 
@@ -62,5 +63,84 @@ public class OdtDocument {
 
     public OdtImage createOdtImage(Element htmlElement, File basePath) {
         return new OdtImage(getRootElement(), htmlElement, basePath);
+    }
+
+    private Element createXmlElementInTextNamespace(String name) {
+        return new Element(name, getOdtTextNamespace());
+    }
+
+    Attribute createOdtAttribute(String name, String value) {
+        return new Attribute(name, value, getOdtTextNamespace());
+    }
+
+    Element createStyledOdtElement(String name, Object style) {
+        Element element = createXmlElementInTextNamespace(name);
+        if (style != null)
+            element.setAttribute(createOdtAttribute("style-name", style.toString()));
+        return element;
+    }
+
+    private Element createOdtTableElement(String name, String style) {
+        Element element = createOdtTableElement(name);
+        element.setAttribute(createOdtAttribute("style-name", style));
+        return element;
+    }
+
+    void openTableRow() {
+        Element element= createOdtTableElement("table-row");
+        openNode(element);
+    }
+
+    int getTableCount() {
+        return odtTables.getTableCount();
+    }
+
+    void incrementTableCount() {
+        odtTables.incrementTableCount();
+    }
+
+    void createTableColumn(long tableColumnIndex) {
+        Element columnElement = createXmlElement("table-column", "table");
+        columnElement.setAttribute(createOdtAttribute("style-name", String.format("Table%d.%s", getTableCount(), 'A' + tableColumnIndex), "table"));
+        addContent(columnElement);
+    }
+
+    void openTable() {
+        incrementTableCount();
+        Element element= createOdtTableElement("table");
+        element.setAttribute(createOdtAttribute("style-name", String.format("Table%d", getTableCount()), "table"));
+
+        openNode(element);
+    }
+
+
+    public Element createSpanElement() {
+        return createXmlElementInTextNamespace("span");
+    }
+
+    public Element createSpanElement(String styleName) {
+        Element spanElement = createXmlElementInTextNamespace("span");
+        spanElement.setAttribute("style-name", styleName, getOdtTextNamespace());
+        //spanElement.setText(text);
+        return  spanElement;
+    }
+
+    public Element createParagraphElement() {
+        return createXmlElementInTextNamespace("p");
+    }
+
+    public Element createSpaceElement() {
+        return createXmlElementInTextNamespace("s");
+    }
+
+
+    public Element createLineBreakElement() {
+        return createXmlElementInTextNamespace("line-break");
+    }
+
+    public Element createAElement(String href) {
+        Element aElement = createXmlElementInTextNamespace("a");
+        aElement.setAttribute(createOdtAttribute("href", href, "xlink"));
+        return aElement;
     }
 }

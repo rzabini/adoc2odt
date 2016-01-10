@@ -5,7 +5,7 @@ import org.asciidoctor.ast.Document;
 import org.jdom2.*;
 
 import java.io.*;
-import java.util.Stack;
+import java.util.List;
 
 public class Adoc2Odt implements AdocListener {
 
@@ -14,8 +14,9 @@ public class Adoc2Odt implements AdocListener {
     private final OdtDocument odtDocument;
     private final OdtFile odtFile;
     private final Manifest manifest=new Manifest();
-    private final Stack<OdtStyle> styleStack = new Stack<OdtStyle>();
-    private int tableCount = 0;
+
+    OdtStyles odtStyles = new OdtStyles();
+
     private File basePath;
 
     public Adoc2Odt(File outputFile, File styleFile) throws Exception {
@@ -26,7 +27,8 @@ public class Adoc2Odt implements AdocListener {
 
     @Override
     public void visitDocument(Document document, String absolutePath) {
-       writeMetadata(document);
+        basePath = new File(absolutePath).getParentFile();
+        writeMetadata(document);
     }
 
     public void departDocument(Document adocDocument) {
@@ -42,17 +44,27 @@ public class Adoc2Odt implements AdocListener {
 
     @Override
     public void visitParagraph(Block paragraph)  {
-        HtmlFragment htmlFragment = new HtmlFragment(paragraph.convert());
-        Element element=   htmlFragment.toValidXmlElement().getChild("p");
+
+        if (paragraph.getAttr("title") != null) {
+            Element title = odtDocument.createParagraphElement();
+            title.setText(paragraph.getAttr("title").toString());
+            odtDocument.addContent(title);
+
+        }
+
+        HtmlLiteral htmlFragment = new HtmlLiteral(paragraph.convert());
+        Element element = htmlFragment.toValidXmlElement().getChild("p");
         pushParagraphStyle(paragraph);
 
         applyCurrentStyle(element);
     }
 
     private void applyCurrentStyle(Element element) {
-        OdtStyle appliedStyle = styleStack.empty()? null : styleStack.peek();
+        OdtStyle appliedStyle = odtStyles.getCurrentStyle();
         if(appliedStyle != null)
             odtDocument.addContent(translateHtml(element, appliedStyle));
+        else
+            odtDocument.addContent(translateHtml(element));
     }
 
     private void pushParagraphStyle(Block paragraph) {
@@ -69,7 +81,7 @@ public class Adoc2Odt implements AdocListener {
     private void popParagraphStyle(Block paragraph) {
         OdtStyle adocStyle = getAdocStyle(paragraph);
         if (adocStyle.isValid())
-            styleStack.pop();
+            odtStyles.pop();
     }
 
     private OdtStyle getAdocStyle(Block paragraph) {
@@ -77,13 +89,13 @@ public class Adoc2Odt implements AdocListener {
     }
 
     private Element translateHtml(Element htmlElement, OdtStyle style) {
-        Element newParagraph = createStyledOdtElement("p", style);
+        Element newParagraph = odtDocument.createStyledOdtElement("p", style);
         fill(htmlElement, newParagraph);
         return newParagraph;
     }
 
     private Element translateHtml(Element htmlElement) {
-        Element newParagraph = createOdtElement("p");
+        Element newParagraph = odtDocument.createParagraphElement();
         fill(htmlElement, newParagraph);
         return newParagraph;
     }
@@ -103,19 +115,39 @@ public class Adoc2Odt implements AdocListener {
     }
 
     private Element htmlElementToOdtElement(Element htmlElement) {
-        Element odtElement = createOdtElement(htmlElement.getName());
-        if (odtElement.getName().equalsIgnoreCase("a")) {
-            odtElement.setNamespace(odtDocument.getOdtTextNamespace());
-            odtElement.setAttribute(odtDocument.createOdtAttribute("href", htmlElement.getAttribute("href").getValue(), "xlink"));
-        } else if (odtElement.getName().equalsIgnoreCase("em")) {
-            addTextRun(odtElement, "adoc-emphasis");
-        } else if (odtElement.getName().equalsIgnoreCase("strong")) {
-            addTextRun(odtElement, "adoc-strong");
-        }  else if (odtElement.getName().equalsIgnoreCase("img")) {
+        if (htmlElement.getName().equalsIgnoreCase("a")) {
+            return odtDocument.createAElement(htmlElement.getAttribute("href").getValue());
+        }
+        else if (htmlElement.getName().equalsIgnoreCase("span")) {
+            return odtDocument.createSpanElement();
+        }
+        else if (htmlElement.getName().equalsIgnoreCase("em")) {
+            return odtDocument.createSpanElement("adoc-emphasis");
+        }
+        else if (htmlElement.getName().equalsIgnoreCase("strong")) {
+            return odtDocument.createSpanElement("adoc-strong");
+        }
+        else if (htmlElement.getName().equalsIgnoreCase("sup")) {
+            return odtDocument.createSpanElement( "adoc-sup");
+        }
+        else if (htmlElement.getName().equalsIgnoreCase("sub")) {
+            return odtDocument.createSpanElement("adoc-sub");
+        }
+        else if (htmlElement.getName().equalsIgnoreCase("code")) {
+            return odtDocument.createSpanElement("adoc-code");
+        }
+        else if (htmlElement.getName().equalsIgnoreCase("u")) {
+            return odtDocument.createSpanElement("adoc-u");
+        }
+        else if (htmlElement.getName().equalsIgnoreCase("br")) {
+            return odtDocument.createLineBreakElement();
+        }
+
+        else if (htmlElement.getName().equalsIgnoreCase("img")) {
             return createOdtImage(htmlElement);
         }
 
-        return odtElement;
+        throw new RuntimeException("cannot convert htmlElement: " + htmlElement.getName());
     }
 
     private Element createOdtImage(Element htmlElement)  {
@@ -124,12 +156,6 @@ public class Adoc2Odt implements AdocListener {
         File imageFile = new File( basePath, imageFilePath);
         storeImage(imageFile);
         return odtImage.toOdtElement();
-    }
-
-    private void addTextRun(Element odtElement, String styleName) {
-        odtElement.setNamespace(odtDocument.getOdtTextNamespace());
-        odtElement.setName("span");
-        odtElement.setAttribute("style-name", styleName, odtDocument.getOdtTextNamespace());
     }
 
     private Content htmlElementToOdtElement(Text child) {
@@ -152,7 +178,7 @@ public class Adoc2Odt implements AdocListener {
     }
 
     private Element toValidXmlElement(String htmlFragment) {
-        return new HtmlFragment(htmlFragment).toValidXmlElement();
+        return new HtmlLiteral(htmlFragment).toValidXmlElement();
     }
 
     @Override
@@ -187,23 +213,19 @@ public class Adoc2Odt implements AdocListener {
 
     @Override
     public void visitListing(Block block) {
-        Element element = createStyledOdtElement("p", "adoc-listing");
+        Element element = odtDocument.createStyledOdtElement("p", "adoc-listing");
 
         for (String line : block.lines()){
             int leadingSpacesCount = line.indexOf(line.trim());
-            Element spaces = createOdtElement("s");
-            spaces.setAttribute(createOdtAttribute("c", Integer.toString(leadingSpacesCount)));
+            Element spaces = odtDocument.createSpaceElement();
+            spaces.setAttribute(odtDocument.createOdtAttribute("c", Integer.toString(leadingSpacesCount)));
             element.addContent(spaces);
             element.addContent(new Text(line.trim()));
-            element.addContent(createOdtElement("line-break"));
+            element.addContent(odtDocument.createLineBreakElement());
         }
         odtDocument.addContent(element);
     }
 
-
-    private Attribute createOdtAttribute(String name, String value) {
-        return new Attribute(name, value, odtDocument.getOdtTextNamespace());
-    }
 
     @Override
     public void departListing(Block block) {
@@ -212,25 +234,24 @@ public class Adoc2Odt implements AdocListener {
 
     @Override
     public void visitTable(TableNode table) {
-        ++tableCount;
-        Element element= odtDocument.createOdtTableElement("table");
-        element.setAttribute(odtDocument.createOdtAttribute("style-name", String.format("Table%d", tableCount), "table"));
-
-        odtDocument.openNode(element);
+        odtDocument.openTable();
     }
 
     @Override
     public void departTable(TableNode table) {
         odtDocument.closeNode();
-
     }
 
     @Override
     public void visitBodyCell(TableCell cell) {
+        writeTableCell(cell.lines());
+    }
+
+    private void writeTableCell(List<String> lines) {
         Element element= odtDocument.createOdtTableElement("table-cell");
 
-        for (Object line : cell.lines()) {
-            Element htmlElement = toValidXmlElement(String.format("<p>%s</p>", line));
+        for (String line : lines) {
+            Element htmlElement = new HtmlLiteral(String.format("<p>%s</p>", line)).toValidXmlElement();
             element.addContent(translateHtml(htmlElement));
         }
 
@@ -266,24 +287,24 @@ public class Adoc2Odt implements AdocListener {
 
     @Override
     public void visitSidebar(Block block) {
-        Element title = createStyledOdtElement("p", "adoc-sidebar-title");
+        Element title = odtDocument.createStyledOdtElement("p", "adoc-sidebar-title");
         title.setText(getAttribute(block, "title"));
         odtDocument.addContent(title);
         pushCurrentParagraphStyle("adoc-sidebar");
     }
 
     private void pushCurrentParagraphStyle(String styleName) {
-        styleStack.push(new OdtStyle(styleName));
+        odtStyles.push(new OdtStyle(styleName));
     }
 
     @Override
     public void departSidebar(Block block) {
-        styleStack.pop();
+        odtStyles.pop();
     }
 
     @Override
     public void visitAdmonition(Block block) {
-        Element element= createStyledOdtElement("p", String.format("adoc-%s", getAttribute(block, "style").toLowerCase()));
+        Element element= odtDocument.createStyledOdtElement("p", String.format("adoc-%s", getAttribute(block, "style").toLowerCase()));
 
         for (String line : block.lines()) {
             appendTranslatedHtmlFragment(element, line);
@@ -296,6 +317,31 @@ public class Adoc2Odt implements AdocListener {
 
     }
 
+    @Override
+    public void visitPreamble(Block block) {
+        Element element= odtDocument.createStyledOdtElement("p", String.format("adoc-%s", getAttribute(block, "style").toLowerCase()));
+
+        for (String line : block.lines()) {
+            appendTranslatedHtmlFragment(element, line);
+        }
+        odtDocument.addContent(element);
+    }
+
+    @Override
+    public void departPreamble(Block block) {
+
+    }
+
+    @Override
+    public void departLiteral(Block block) {
+        departParagraph(block);
+    }
+
+    @Override
+    public void visitLiteral(Block block) {
+        visitParagraph(block);
+    }
+
 
     private String getAttribute(Block block, String attributeName) {
         Object attr = block.getAttributes().get(attributeName);
@@ -306,33 +352,16 @@ public class Adoc2Odt implements AdocListener {
 
     @Override
     public void visitTableColumn(TableColumn tableColumn) {
-        Element columnElement = odtDocument.createOdtElement("table-column", "table");
-        columnElement.setAttribute(odtDocument.createOdtAttribute("style-name", String.format("Table%d.%s", tableCount, 'A' + tableColumn.getIndex() ), "table"));
-        odtDocument.addContent(columnElement);
+        odtDocument.createTableColumn(tableColumn.getIndex());
+    }
 
+    private int getTableCount() {
+        return odtDocument.getTableCount();
     }
 
     @Override
     public void visitTableRow() {
-        Element element= odtDocument.createOdtTableElement("table-row");
-        odtDocument.openNode(element);
-    }
-
-    private Element createOdtElement(String name) {
-        return new Element(name, odtDocument.getOdtTextNamespace());
-    }
-
-    private Element createStyledOdtElement(String name, Object style) {
-        Element element = createOdtElement(name);
-        if (style != null)
-            element.setAttribute(createOdtAttribute("style-name", style.toString()));
-        return element;
-    }
-
-    private Element createOdtTableElement(String name, String style) {
-        Element element = odtDocument.createOdtTableElement(name);
-        element.setAttribute(createOdtAttribute("style-name", style));
-        return element;
+        odtDocument.openTableRow();
     }
 
 
