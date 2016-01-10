@@ -12,15 +12,11 @@ public class Adoc2Odt implements AdocListener {
     public static final String MAIN_NAMESPACE = "urn:oasis:names:tc:opendocument:xmlns:office:1.0";
 
     private final OdtDocument odtDocument;
-
+    private final OdtFile odtFile;
+    private final Manifest manifest=new Manifest();
+    private final Stack<OdtStyle> styleStack = new Stack<OdtStyle>();
     private int tableCount = 0;
     private File basePath;
-
-    private final OdtFile odtFile;
-
-    private final Manifest manifest=new Manifest();
-
-    private final Stack<OdtStyle> styleStack = new Stack<OdtStyle>();
 
     public Adoc2Odt(File outputFile, File styleFile) throws Exception {
 
@@ -107,7 +103,7 @@ public class Adoc2Odt implements AdocListener {
     }
 
     private Element htmlElementToOdtElement(Element htmlElement) {
-        Element odtElement = createOdtElement(htmlElement.getName()); //child.clone();
+        Element odtElement = createOdtElement(htmlElement.getName());
         if (odtElement.getName().equalsIgnoreCase("a")) {
             odtElement.setNamespace(odtDocument.getOdtTextNamespace());
             odtElement.setAttribute(odtDocument.createOdtAttribute("href", htmlElement.getAttribute("href").getValue(), "xlink"));
@@ -116,7 +112,6 @@ public class Adoc2Odt implements AdocListener {
         } else if (odtElement.getName().equalsIgnoreCase("strong")) {
             addTextRun(odtElement, "adoc-strong");
         }  else if (odtElement.getName().equalsIgnoreCase("img")) {
-            //odtElement.setName("image");
             return createOdtImage(htmlElement);
         }
 
