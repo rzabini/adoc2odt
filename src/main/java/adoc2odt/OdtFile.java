@@ -23,9 +23,11 @@ public class OdtFile {
     private final ZipOutputStream odtZipFile;
     private final File styleFile;
     private final Document metadata;
+    private final File outputFile;
 
     public OdtFile(File outputFile, File styleFile) {
         try {
+            this.outputFile = outputFile;
             odtZipFile = new ZipOutputStream(new FileOutputStream(outputFile));
             this.styleFile = styleFile;
             this.metadata = extractXMLFromZip(styleFile, "meta.xml");
@@ -204,5 +206,9 @@ public class OdtFile {
         copyFromStyle("settings.xml");
         copyFromStyle("styles.xml");
         copyFromStyle("mimetype");
+    }
+
+    public void writeContent(OdtDocument odtDocument) {
+        writeDocument(odtDocument.getXmlDocument(), "content.xml");
     }
 }
