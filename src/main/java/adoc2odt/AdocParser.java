@@ -26,13 +26,13 @@ public class AdocParser {
         this.options = options;
     }
 
-    public void addListener(AdocListener adocListener) {
-        announcer.addListener(adocListener);
-    }
-
     static String readFile(String path, Charset encoding) throws IOException {
         byte[] encoded = Files.readAllBytes(Paths.get(path));
         return new String(encoded, encoding);
+    }
+
+    public void addListener(AdocListener adocListener) {
+        announcer.addListener(adocListener);
     }
 
     public void parse() throws IOException {
@@ -77,7 +77,9 @@ public class AdocParser {
         else if (block.getContext().equalsIgnoreCase("literal"))
             visitLiteral((Block)block);
         else if (block.getContext().equalsIgnoreCase("thematic_break"))
-            visitLiteral((Block)block);
+            visitThematicBreak((Block)block);
+        else if (block.getContext().equalsIgnoreCase("page_break"))
+            visitPageBreak((Block)block);
         else if (block.getContext().equalsIgnoreCase("quote"))
             visitLiteral((Block)block);
         else if (block.getContext().equalsIgnoreCase("verse"))
@@ -113,13 +115,23 @@ public class AdocParser {
         else if (block.getContext().equalsIgnoreCase("literal"))
             announcer.announce().departLiteral((Block)block);
         else if (block.getContext().equalsIgnoreCase("thematic_break"))
-            announcer.announce().departLiteral((Block)block);
+            announcer.announce().departThematicBreak((Block)block);
+        else if (block.getContext().equalsIgnoreCase("page_break"))
+            announcer.announce().departPageBreak((Block)block);
         else if (block.getContext().equalsIgnoreCase("quote"))
             announcer.announce().departLiteral((Block)block);
         else if (block.getContext().equalsIgnoreCase("verse"))
             announcer.announce().departLiteral((Block)block);
 
 
+    }
+
+    private void visitPageBreak(Block block) {
+        announcer.announce().visitPageBreak(block);
+    }
+
+    private void visitThematicBreak(Block block) {
+        announcer.announce().visitThematicBreak(block);
     }
 
     private void visitLiteral(Block block) {

@@ -49,7 +49,6 @@ public class Adoc2Odt implements AdocListener {
             Element title = odtDocument.createParagraphElement();
             title.setText(paragraph.getAttr("title").toString());
             odtDocument.addContent(title);
-
         }
 
         HtmlLiteral htmlFragment = new HtmlLiteral(paragraph.convert());
@@ -340,6 +339,29 @@ public class Adoc2Odt implements AdocListener {
     @Override
     public void visitLiteral(Block block) {
         visitParagraph(block);
+    }
+
+
+    @Override
+    public void visitThematicBreak(Block block) {
+        Element element= odtDocument.createStyledOdtElement("p", "adoc-thematic-break");
+        odtDocument.addContent(element);
+    }
+
+    @Override
+    public void departThematicBreak(Block block) {
+
+    }
+
+    @Override
+    public void visitPageBreak(Block block) {
+        Element element= odtDocument.createStyledOdtElement("p", "adoc-page-break");
+        odtDocument.addContent(element);
+    }
+
+    @Override
+    public void departPageBreak(Block block) {
+
     }
 
 

@@ -7,21 +7,27 @@ import java.util.EventListener;
 public interface AdocListener extends EventListener {
 
     void visitDocument(Document document, String absolutePath);
+
     void departDocument(Document document);
 
     void visitParagraph(Block block);
+
     void departParagraph(Block block);
 
     void visitSection(Section section);
+
     void departSection(Section section);
 
     void visitList(ListNode block);
+
     void departList(ListNode block);
 
     void visitListItem(ListItem block);
+
     void departListItem(ListItem block);
 
     void visitListing(Block block);
+
     void departListing(Block block);
 
     void visitTable(TableNode block);
@@ -59,4 +65,12 @@ public interface AdocListener extends EventListener {
     void departLiteral(Block block);
 
     void visitLiteral(Block block);
+
+    void departThematicBreak(Block block);
+
+    void departPageBreak(Block block);
+
+    void visitPageBreak(Block block);
+
+    void visitThematicBreak(Block block);
 }
