@@ -19,7 +19,7 @@ public class OdtDocument {
 
         Namespace officeNS = getRootElement().getNamespace("office");
         currentElement = getRootElement().getChild("body", officeNS).getChild("text", officeNS);
-        currentElement.removeContent();
+        //currentElement.removeContent();
 
     }
 

@@ -5,7 +5,6 @@ import org.asciidoctor.ast.Document;
 import org.jdom2.*;
 
 import java.io.*;
-import java.util.List;
 
 public class Adoc2Odt implements AdocListener {
 
@@ -242,22 +241,6 @@ public class Adoc2Odt implements AdocListener {
     }
 
     @Override
-    public void visitBodyCell(TableCell cell) {
-        writeTableCell(cell.lines());
-    }
-
-    private void writeTableCell(List<String> lines) {
-        Element element= odtDocument.createOdtTableElement("table-cell");
-
-        for (String line : lines) {
-            Element htmlElement = new HtmlLiteral(String.format("<p>%s</p>", line)).toValidXmlElement();
-            element.addContent(translateHtml(htmlElement));
-        }
-
-        odtDocument.addContent(element);
-    }
-
-    @Override
     public void departTableRow() {
         odtDocument.closeNode();
     }
@@ -308,12 +291,12 @@ public class Adoc2Odt implements AdocListener {
         for (String line : block.lines()) {
             appendTranslatedHtmlFragment(element, line);
         }
-        odtDocument.addContent(element);
+        odtDocument.openNode(element);
     }
 
     @Override
     public void departAdmonition(Block block) {
-
+        odtDocument.closeNode();
     }
 
     @Override
@@ -347,6 +330,49 @@ public class Adoc2Odt implements AdocListener {
         Element element= odtDocument.createStyledOdtElement("p", "adoc-thematic-break");
         odtDocument.addContent(element);
     }
+
+    @Override
+    public void visitSimpleBodyCell(TableCell tableCell) {
+        Element element = openCellNode(tableCell);
+
+        Element htmlElement = new HtmlLiteral(String.format("<p>%s</p>", tableCell.text())).toValidXmlElement();
+        element.addContent(translateHtml(htmlElement));
+
+        closeCellNode(tableCell);
+    }
+
+    @Override
+    public void visitComplexBodyCell(TableCell tableCell) {
+        Element element= openCellNode(tableCell);
+    }
+
+    private Element createTableCellNode(TableCell tableCell) {
+        Element element= odtDocument.createOdtTableElement("table-cell");
+        if (tableCell.rowspan() > 0)
+            element.setAttribute(odtDocument.createOdtAttribute("number-rows-spanned", Integer.toString(tableCell.rowspan()), "table"));
+        if (tableCell.colspan() > 0)
+            element.setAttribute(odtDocument.createOdtAttribute("number-columns-spanned", Integer.toString(tableCell.colspan()), "table"));
+        return element;
+    }
+
+    @Override
+    public void departComplexTableCell(TableCell tableCell) {
+        closeCellNode(tableCell);
+    }
+
+    private Element openCellNode(TableCell tableCell) {
+        Element element = createTableCellNode(tableCell);
+        odtDocument.openNode(element);
+        return element;
+    }
+
+    private void closeCellNode(TableCell tableCell) {
+        odtDocument.closeNode();
+        for (int i =0; i < tableCell.colspan() - 1; ++i)
+            odtDocument.addContent(odtDocument.createOdtTableElement("covered-table-cell"));
+
+    }
+
 
     @Override
     public void departThematicBreak(Block block) {

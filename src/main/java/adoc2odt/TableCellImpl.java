@@ -1,8 +1,9 @@
 package adoc2odt;
 
 import org.asciidoctor.ast.AbstractBlockImpl;
+import org.asciidoctor.ast.Document;
 import org.jruby.Ruby;
-import org.jruby.RubyArray;
+import org.jruby.runtime.builtin.IRubyObject;
 
 import java.util.List;
 
@@ -21,8 +22,33 @@ public class TableCellImpl extends AbstractBlockImpl implements TableCell {
     }
 
     @Override
+    public IRubyObject inner_document() {
+        return delegate.inner_document();
+    }
+
+    @Override
+    public String style() {
+        return delegate.style();
+    }
+
+    @Override
+    public String text() {
+        return delegate.text();
+    }
+
+    @Override
+    public int rowspan() {
+        return delegate.rowspan();
+    }
+
+    @Override
+    public int colspan() {
+        return delegate.colspan();
+    }
+
+    @Override
     public List<String> lines() {
-        return ((RubyArray)delegate.getContent()).getList();
+        return null; //((RubyArray)delegate.getContent()).getList();
     }
 
 }

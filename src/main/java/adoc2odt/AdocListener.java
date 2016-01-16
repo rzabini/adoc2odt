@@ -38,8 +38,6 @@ public interface AdocListener extends EventListener {
 
     void departTable(TableNode table);
 
-    void visitBodyCell(TableCell cell);
-
     void departTableRow();
 
     void visitHeaderRows();
@@ -73,4 +71,10 @@ public interface AdocListener extends EventListener {
     void visitPageBreak(Block block);
 
     void visitThematicBreak(Block block);
+
+    void visitSimpleBodyCell(TableCell tableCell);
+
+    void visitComplexBodyCell(TableCell tableCell);
+
+    void departComplexTableCell(TableCell tableCell);
 }

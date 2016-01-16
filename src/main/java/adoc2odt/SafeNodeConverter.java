@@ -5,6 +5,7 @@ import org.asciidoctor.internal.RubyUtils;
 import org.jruby.Ruby;
 import org.jruby.RubyArray;
 import org.jruby.RubyObject;
+import org.jruby.runtime.builtin.IRubyObject;
 
 import java.util.List;
 
@@ -30,7 +31,7 @@ public class SafeNodeConverter {
         return rubyBlocks;
     }
 
-    public AbstractNode createASTNode(RubyObject rubyObject) {
+    public AbstractNode createASTNode(IRubyObject rubyObject) {
         try {
             return NodeConverter.createASTNode(rubyObject);
         }
@@ -39,7 +40,7 @@ public class SafeNodeConverter {
             Ruby runtime = rubyObject.getRuntime();
             if (TABLE_CLASS.equals(rubyClassName)) {
                 TableNode table = RubyUtils.rubyToJava(runtime, rubyObject, TableNode.class);
-                return new TableImpl(table, runtime);
+                return new TableImpl(table, runtime, this);
             }
             if (TABLE_COLUMN_CLASS.equals(rubyClassName)) {
                 TableColumn column = RubyUtils.rubyToJava(runtime, rubyObject, TableColumn.class);
@@ -57,5 +58,13 @@ public class SafeNodeConverter {
                 throw new IllegalArgumentException("Don't know what to do with a " + rubyObject);
             //return  new RubyAbstractBlock(rubyObject);
         }
+    }
+
+    public TableCell createTableCellASTNode(IRubyObject rubyObject) {
+        return (TableCell) createASTNode(rubyObject);
+    }
+
+    public Document createDocumentASTNode(IRubyObject rubyObject) {
+        return (Document)createASTNode(rubyObject);
     }
 }

@@ -20,10 +20,12 @@ public class AdocParser {
     private final Map<String, Object> options;
 
     Announcer<AdocListener> announcer = Announcer.to(AdocListener.class);
+    private final SafeNodeConverter nodeConverter;
 
     public AdocParser(File adocFile, Map<String, Object> options) {
         this.adocFile = adocFile;
         this.options = options;
+        nodeConverter = new SafeNodeConverter();
     }
 
     static String readFile(String path, Charset encoding) throws IOException {
@@ -41,7 +43,7 @@ public class AdocParser {
 
         announcer.announce().visitDocument(document, adocFile.getAbsolutePath());
 
-        ListIterator<AbstractBlock> iterator = document.getBlocks().listIterator();
+        ListIterator<AbstractBlock> iterator = nodeConverter.getBlocks(document).listIterator();
         while (iterator.hasNext())
             visit(iterator.next());
 
@@ -50,7 +52,7 @@ public class AdocParser {
 
     private void visit(AbstractBlock block) {
 
-        SafeNodeConverter safeNodeConverter = new SafeNodeConverter();
+
 
         if (block.getContext().equalsIgnoreCase("paragraph"))
             announcer.announce().visitParagraph((Block)block);
@@ -88,7 +90,7 @@ public class AdocParser {
             throw new RuntimeException("cannot visit node: " + block.getContext());
 
         //ListIterator<AbstractBlock> iterator = block.getBlocks().listIterator();
-        List<AbstractBlock> abstractBlockList = safeNodeConverter.getBlocks(block);
+        List<AbstractBlock> abstractBlockList = nodeConverter.getBlocks(block);
         for (AbstractBlock abstractBlock : abstractBlockList) {
             System.out.println(abstractBlock.getTitle());
             visit(abstractBlock);
@@ -160,40 +162,41 @@ public class AdocParser {
         }
 
         announcer.announce().visitHeaderRows();
-        for (RubyArray row : tableNode.headerRows()) {
-            announcer.announce().visitTableRow();
-            List<RubyObject> list = row.getList();
-            for (RubyObject cell : list) {
-                TableCell tableCell = (TableCell) new SafeNodeConverter().createASTNode(cell);
-                announcer.announce().visitBodyCell(tableCell);
-            }
-            announcer.announce().departTableRow();
-        }
+        visitRows(tableNode.headerRows());
         announcer.announce().departHeaderRows();
 
-        for (RubyArray row : tableNode.bodyRows()) {
-            announcer.announce().visitTableRow();
-            List<RubyObject> list = row.getList();
-            for (RubyObject cell : list) {
-                TableCell tableCell = (TableCell) new SafeNodeConverter().createASTNode(cell);
-                announcer.announce().visitBodyCell(tableCell);
-            }
-            announcer.announce().departTableRow();
-        }
+        visitRows(tableNode.bodyRows());
 
         announcer.announce().visitFooterRows();
-        for (RubyArray row : tableNode.footerRows()) {
-            announcer.announce().visitTableRow();
-            List<RubyObject> list = row.getList();
-            for (RubyObject cell : list) {
-                TableCell tableCell = (TableCell) new SafeNodeConverter().createASTNode(cell);
-                announcer.announce().visitBodyCell(tableCell);
-            }
-            announcer.announce().departTableRow();
-        }
+        visitRows(tableNode.footerRows());
         announcer.announce().departFooterRows();
 
 
         announcer.announce().departTable(tableNode);
+    }
+
+    private void visitRows(List<RubyArray> rows) {
+        for (List<RubyObject> row : rows) {
+            announcer.announce().visitTableRow();
+            for (RubyObject cell : row) {
+                TableCell tableCell = new SafeNodeConverter().createTableCellASTNode(cell);
+                visitTableCell(tableCell);
+            }
+            announcer.announce().departTableRow();
+        }
+    }
+
+    private void visitTableCell(TableCell tableCell) {
+        if (tableCell.inner_document() == null) {
+            announcer.announce().visitSimpleBodyCell(tableCell);
+        }
+        else {
+            Document document = new SafeNodeConverter().createDocumentASTNode(tableCell.inner_document());
+            announcer.announce().visitComplexBodyCell(tableCell);
+            for (AbstractBlock block : document.getBlocks()) {
+                visit(block);
+            }
+            announcer.announce().departComplexTableCell(tableCell);
+        }
     }
 }

@@ -13,6 +13,8 @@ public interface TableNode extends AbstractBlock {
 
     List<RubyArray> bodyRows();
 
+    List<TableRow> getBodyRows();
+
     RubyArray columns();
 
     List getColumnList();
