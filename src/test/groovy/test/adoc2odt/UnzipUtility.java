@@ -20,26 +20,21 @@ public class UnzipUtility {
      */
     private static final int BUFFER_SIZE = 4096;
 
-    /**
-     * Extracts a zip file specified by the zipFilePath to a directory specified by
-     * destDirectory (will be created if does not exists)
-     * @param zipFilePath
-     * @param destDirectory
-     * @throws IOException
-     */
-    public static void unzip(String zipFilePath, String destDirectory) throws IOException {
-        File destDir = new File(destDirectory);
+
+
+    public static void unzip(File zipFile, File destDir) throws IOException {
+
         if (!destDir.exists()) {
             destDir.mkdir();
         }
 
-        ZipInputStream zipIn = new ZipInputStream(new FileInputStream(zipFilePath));
+        ZipInputStream zipIn = new ZipInputStream(new FileInputStream(zipFile));
 
         ZipEntry entry = zipIn.getNextEntry();
 
         // iterates over entries in the zip file
         while (entry != null) {
-            String filePath = destDirectory + File.separator + entry.getName();
+            String filePath = destDir.getPath() + File.separator + entry.getName();
             extractFile(zipIn, filePath);
             zipIn.closeEntry();
             entry = zipIn.getNextEntry();
@@ -63,5 +58,9 @@ public class UnzipUtility {
             bos.write(bytesIn, 0, read);
         }
         bos.close();
+    }
+
+    public static void unzip(File zipFile) throws IOException {
+        unzip(zipFile, zipFile.getParentFile());
     }
 }
