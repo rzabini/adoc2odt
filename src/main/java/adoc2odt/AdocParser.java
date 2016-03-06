@@ -1,5 +1,6 @@
 package adoc2odt;
 
+import org.apache.commons.io.IOUtils;
 import org.asciidoctor.Asciidoctor;
 import org.asciidoctor.ast.*;
 import org.jruby.RubyArray;
@@ -7,27 +8,36 @@ import org.jruby.RubyObject;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 
 public class AdocParser {
+    private final File basePath;
 
-    private final File adocFile;
-    private final Map<String, Object> options;
+    //private final File adocFile;
+    //private final Map<String, Object> options;
 
     Announcer<AdocListener> announcer = Announcer.to(AdocListener.class);
     private final SafeNodeConverter nodeConverter;
+    private final InputStream inputStream;
 
-    public AdocParser(File adocFile, Map<String, Object> options) {
-        this.adocFile = adocFile;
-        this.options = options;
+    public AdocParser(InputStream inputStream, File basePath, AdocListener listener) {
+        this.inputStream = inputStream;
+        this.basePath = basePath;
         nodeConverter = new SafeNodeConverter();
+        addListener(listener);
     }
 
+    static String readInputStream(InputStream inputStream, Charset encoding) throws IOException {
+        byte[] encoded = IOUtils.toByteArray(inputStream);
+        return new String(encoded, encoding);
+    }
     static String readFile(String path, Charset encoding) throws IOException {
         byte[] encoded = Files.readAllBytes(Paths.get(path));
         return new String(encoded, encoding);
@@ -35,13 +45,15 @@ public class AdocParser {
 
     public void addListener(AdocListener adocListener) {
         announcer.addListener(adocListener);
+        announcer.announce().basePath(basePath);
+
     }
 
     public void parse() throws IOException {
         Asciidoctor asciidoctor = Asciidoctor.Factory.create();
-        Document document=asciidoctor.load(readFile(adocFile.getAbsolutePath(), Charset.defaultCharset()), options);
+        Document document=asciidoctor.load(readInputStream(this.inputStream, Charset.defaultCharset()), new HashMap<String, Object>());
 
-        announcer.announce().visitDocument(document, adocFile.getAbsolutePath());
+        announcer.announce().visitDocument(document /*, adocFile.getAbsolutePath()*/);
 
         ListIterator<AbstractBlock> iterator = nodeConverter.getBlocks(document).listIterator();
         while (iterator.hasNext())

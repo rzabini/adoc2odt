@@ -2,11 +2,12 @@ package adoc2odt;
 
 import org.asciidoctor.ast.*;
 
+import java.io.File;
 import java.util.EventListener;
 
 public interface AdocListener extends EventListener {
 
-    void visitDocument(Document document, String absolutePath);
+    void visitDocument(Document document/*, String absolutePath*/);
 
     void departDocument(Document document);
 
@@ -77,4 +78,6 @@ public interface AdocListener extends EventListener {
     void visitComplexBodyCell(TableCell tableCell);
 
     void departComplexTableCell(TableCell tableCell);
+
+    void basePath(File basePath);
 }

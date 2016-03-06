@@ -11,7 +11,7 @@ import java.io.IOException;
 public class OdtImage extends OdtElement {
     private final Element htmlElement;
     private final File basePath;
-    private static final double DFAULT_72_DPI = 28.34;
+    private static final double DEFAULT_IMAGE_RATIO_144_PPI = 28.34 * 2;
 
 
     public OdtImage(Element rootElement, Element htmlElement, File basePath) {
@@ -49,7 +49,7 @@ public class OdtImage extends OdtElement {
     }
 
     private String getImageSizeInCm(int size) {
-        return String.format("%scm", Double.toString (size/ DFAULT_72_DPI)).replace(',', '.');
+        return String.format("%scm", Double.toString (size/ DEFAULT_IMAGE_RATIO_144_PPI)).replace(',', '.');
     }
 
     private ImageInfo getImageInfo(File imageFile)  {

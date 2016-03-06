@@ -1,43 +1,55 @@
 package adoc2odt;
 
+import com.google.common.io.ByteStreams;
+import com.google.common.io.Files;
 import org.asciidoctor.ast.*;
 import org.asciidoctor.ast.Document;
+import org.asciidoctor.internal.IOUtils;
 import org.jdom2.*;
+import org.jdom2.input.SAXBuilder;
+import org.jdom2.output.XMLOutputter;
+import org.zeroturnaround.zip.ByteSource;
+import org.zeroturnaround.zip.ZipEntrySource;
+import org.zeroturnaround.zip.ZipUtil;
 
 import java.io.*;
+import java.util.*;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 
 public class Adoc2Odt implements AdocListener {
 
     public static final String MAIN_NAMESPACE = "urn:oasis:names:tc:opendocument:xmlns:office:1.0";
 
-    private final OdtDocument odtDocument;
-    private final OdtFile odtFile;
-    private final Manifest manifest=new Manifest();
+    private  OdtDocument odtDocument;
+    //private final Manifest manifest=new Manifest();
 
     OdtStyles odtStyles = new OdtStyles();
 
     private File basePath;
 
-    public Adoc2Odt(File outputFile, File styleFile) throws Exception {
-
-        odtFile = new OdtFile(outputFile, styleFile);
-        odtDocument = new OdtDocument(odtFile.extractXMLFromZip(styleFile, "content.xml"));
+    public Adoc2Odt(OdtDocument odtDocument) {
+        this.odtDocument = odtDocument;
     }
 
+
     @Override
-    public void visitDocument(Document document, String absolutePath) {
-        basePath = new File(absolutePath).getParentFile();
-        writeMetadata(document);
+    public void visitDocument(Document document) {
+        odtDocument.setGenerator("adoc2odt");
+        odtDocument.setTitle(document.doctitle());
     }
 
     public void departDocument(Document adocDocument) {
-        odtFile.writeContent(odtDocument);
+/*        odtFile.writeContent(odtDocument);
 
         odtFile.copyCommonElementsFromStyle();
         odtFile.copyPicturesFolderFromStyle(manifest);
 
         odtFile.writeManifest(manifest.toDocument());
-        odtFile.close();
+        odtFile.close();*/
+        odtDocument.write();
     }
 
 
@@ -360,6 +372,11 @@ public class Adoc2Odt implements AdocListener {
         closeCellNode(tableCell);
     }
 
+    @Override
+    public void basePath(File basePath) {
+        this.basePath = basePath;
+    }
+
     private Element openCellNode(TableCell tableCell) {
         Element element = createTableCellNode(tableCell);
         odtDocument.openNode(element);
@@ -414,18 +431,19 @@ public class Adoc2Odt implements AdocListener {
 
 
     private void writeMetadata(Document adocDocument) {
-        odtFile.setMetaProperty("meta", "generator", "adoc2odt");
+/*        odtFile.setMetaProperty("meta", "generator", "adoc2odt");
         odtFile.setMetaProperty( "dc", "title", adocDocument.doctitle());
-        odtFile.writeMetadata();
+        odtFile.writeMetadata();*/
     }
 
     private void storeImage(File imageFile) {
         String fileRelativePath = String.format("Pictures/%s", imageFile.getName());
 
-        if (!manifest.exists(fileRelativePath)) {
+        /*if (!manifest.exists(fileRelativePath)) {
             manifest.addFileEntry(fileRelativePath);
-            odtFile.storeFile(imageFile, fileRelativePath);
-        }
+            odtDocument.storeFile(imageFile, fileRelativePath);
+        }*/
+        odtDocument.storeFile(imageFile, fileRelativePath);
     }
 
 }

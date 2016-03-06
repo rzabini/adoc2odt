@@ -78,7 +78,8 @@ public class OdtFile {
 
     org.jdom2.Document extractXMLFromZip(File zipFile, String fileName) {
         try {
-            final OutputStreamToInputStream<Document> out = new OutputStreamToInputStream<org.jdom2.Document>() {
+            final OutputStreamToInputStream<Document> out =
+                    new OutputStreamToInputStream<org.jdom2.Document>() {
                 @Override
                 protected org.jdom2.Document doRead(final InputStream istream) throws Exception {
           /*
@@ -176,23 +177,6 @@ public class OdtFile {
         copyZipFolderEntry(styleFile, "Pictures", manifest);
     }
 
-    public void setMetaProperty(String attributeNamespace, String attributeName, String attributeValue) {
-        Element root = metadata.getRootElement();
-        Element meta = root.getChild("meta", root.getNamespace());
-        Element attributeElement = meta.getChild(attributeName, root.getNamespace(attributeNamespace));
-        if (attributeElement == null) {
-            attributeElement = new Element(attributeName, root.getNamespace(attributeNamespace));
-            meta.addContent(attributeElement);
-        }
-
-        attributeElement.setText(attributeValue);
-    }
-
-
-
-    public void writeMetadata() {
-        writeDocument(metadata, "meta.xml");
-    }
 
     public void close() {
         try {
@@ -208,7 +192,4 @@ public class OdtFile {
         copyFromStyle("mimetype");
     }
 
-    public void writeContent(OdtDocument odtDocument) {
-        writeDocument(odtDocument.getXmlDocument(), "content.xml");
-    }
 }
