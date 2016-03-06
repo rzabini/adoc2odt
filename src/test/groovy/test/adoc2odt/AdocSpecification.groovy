@@ -69,7 +69,7 @@ class AdocSpecification extends Specification {
     }
 
     private parseString(String adocString, String odtTemplate) {
-        buildParser('adoc', "odt/template/$odtTemplate" , fromString(adocString)).parse()
+        buildParser(fromString(adocString), 'adoc', "odt/template/$odtTemplate").parse()
     }
 
     private static File file(String fileName) {
@@ -77,11 +77,11 @@ class AdocSpecification extends Specification {
     }
 
     private AdocParser buildParser(String adocFileName, String odtTemplatePath) {
-        buildParser('adoc', odtTemplatePath, readResource("adoc/$adocFileName"))
+        buildParser(readResource("adoc/$adocFileName"), 'adoc', odtTemplatePath)
     }
 
-    private AdocParser buildParser(String adocBasePath, String odtTemplatePath, InputStream resource) {
-        new AdocParser(resource,
+    private AdocParser buildParser(InputStream adocSource, String adocBasePath, String odtTemplatePath) {
+        new AdocParser(adocSource,
                 new File(getClass().getClassLoader().getResource(adocBasePath).getFile()),
                 new Adoc2Odt(
                         new OdtDocument(
